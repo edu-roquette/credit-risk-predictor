@@ -2,7 +2,7 @@
 
 # 
 
-# Autores: Eduardo Roquette / Fernando Araújo
+# Autores: Eduardo Roquette / Fernando Araújo / Gustavo
 
 # 
 
