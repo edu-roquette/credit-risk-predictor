@@ -1,119 +1,43 @@
-# 📊 Projeto Final: Modelo de Classificação para Risco de Crédito
+Projeto Final: Modelo de Classificação para Risco de Crédito
+Autores: Eduardo Roquette, Fernando Araújo e Gustavo Bogéa
 
-# 
+Data: Novembro/2026
 
-# Autores: Eduardo Roquette / Fernando Araújo / Gustavo Bogéa
+Objetivo
+Desenvolver um algoritmo de machine learning capaz de prever a probabilidade de inadimplência de clientes com base em dados financeiros e demográficos. O foco do projeto é automatizar e apoiar a tomada de decisão na concessão de crédito, garantindo o equilíbrio entre a mitigação de risco e a geração de receita.
 
-# 
+Contexto e Desafio de Negócio
+O setor financeiro lida constantemente com o desbalanceamento severo de dados. Nesta base, identificamos um cenário real de mercado:
 
-# Data: Novembro/2026
+88,31% de Bons Pagadores (Classe 0)
 
-# 
+11,69% de Inadimplentes (Classe 1)
 
-# 🎯 Objetivo
+Modelos tradicionais tendem a classificar todos os clientes como bons pagadores (gerando perdas financeiras por falsos negativos) ou tornam-se excessivamente conservadores (barrando bons clientes e limitando o lucro).
 
-# 
+Pipeline de Dados
+Limpeza e Feature Engineering: Imputação de nulos, transformação de dias corridos em idade e anos de emprego, e adequação de variáveis categóricas.
 
-# Desenvolver um algoritmo de machine learning capaz de classificar clientes em bons ou maus pagadores com base em dados financeiros e demográficos (como renda anual, faixa etária, escolaridade e ocupação). O modelo foca em prever a probabilidade de inadimplência a partir do histórico de crédito, trazendo maior precisão analítica e automação para apoiar a tomada de decisão na concessão de crédito, equilibrando a mitigação de risco com a geração de negócios.
+Variável Alvo (Target): Cliente classificado como inadimplente (1) caso possua histórico de atraso superior a 30 dias em qualquer momento da vida do crédito.
 
-# 
+Pré-processamento: Separação estratificada (preservando a proporção de 88/11), One-Hot Encoding e padronização (StandardScaler) para o modelo linear.
 
-# 💼 Contexto de Negócio e Desafio
+Modelagem e Avaliação de Performance
+Testamos dois algoritmos lidando nativamente com o desbalanceamento das classes. A avaliação de negócio baseou-se não apenas no padrão de 0.50, mas na análise de limiares de corte otimizados (J de Youden) e limiares comerciais.
 
-# 
+1. Regressão Logística (Inviável)
+Poder de separação fraco: ROC-AUC de apenas 0.550, atuando próximo a um classificador aleatório.
 
-# No setor financeiro, a concessão de crédito lida com um desafio clássico: o desbalanceamento severo de dados. Nesta base, identificamos:
+Inviabilidade comercial: Para tentar conter os calotes definindo um limiar de risco de 0.35 (alcançando Recall de 99.5%), a acurácia global do modelo despenca para 12.5%. Na prática, isso significaria negar crédito para quase toda a base de clientes para evitar a inadimplência.
 
-# 
+2. XGBoost Classifier (Recomendado)
+O modelo baseado em árvores capturou as complexidades e não-linearidades dos dados, elevando o ROC-AUC para 0.676.
 
-# 88,31% da base formada por Bons Pagadores (Classe 0)
+O Custo do "Risco Zero" (Limiar 0.30): Focar excessivamente na proteção contra calotes (Recall de 92.6%) derruba a precisão para 12.9%. Isso faria a instituição rejeitar cerca de 7 a 8 bons clientes para cada mau pagador bloqueado, asfixiando a esteira de vendas.
 
-# 
+O Cenário Ótimo (Limiar 0.50): Entrega o melhor cenário operacional. Consegue barrar mais da metade dos verdadeiros inadimplentes (Recall de 53.8%) ao mesmo tempo em que mantém uma acurácia global de 70.1%, aprovando um volume saudável de bons pagadores.
 
-# 11,69% da base formada por Inadimplentes (Classe 1)
+Decisão Final
+O XGBoost operando no limiar ótimo estatístico de 0.50 (ou com um ajuste comercial sutil para 0.45) é a escolha final para produção.
 
-# 
-
-# Modelos tradicionais tendem a classificar todos os clientes como bons pagadores apenas por probabilidade, gerando perdas financeiras (falsos negativos), ou tornam-se excessivamente conservadores, barrando bons clientes (falsos positivos). O projeto foca em otimizar as métricas de Recall e Precision para garantir a saúde financeira e comercial da instituição.
-
-# 
-
-# 🛠️ Metodologia e Pipeline de Dados
-
-# 
-
-# O processamento dos dados envolveu as seguintes etapas:
-
-# 
-
-# Limpeza e Tratamento: Imputação de valores nulos, remoção de registros duplicados e padronização de nomenclatura de colunas.
-
-# 
-
-# Feature Engineering: Criação de variáveis estratégicas como idade e anos\_emprego a partir de contagens de dias, além de um tratamento específico para diferenciar desempregados/aposentados.
-
-# 
-
-# Tratamento de Outliers: Aplicação do método IQR (Intervalo Interquartil) na variável de renda anual para remover distorções.
-
-# 
-
-# Target (Variável Alvo): Mapeamento do histórico de pagamentos, considerando como inadimplente (1) qualquer cliente com atraso superior a 30 dias em qualquer momento da vida de crédito.
-
-# 
-
-# Pré-processamento para ML:
-
-# 
-
-# Separação Estratificada (stratify=y) para garantir a proporção correta de classes no treino e teste.
-
-# 
-
-# One-Hot Encoding (pd.get\_dummies com drop\_first=True) para variáveis categóricas.
-
-# 
-
-# Padronização de escala (StandardScaler) para a Regressão Logística.
-
-# 
-
-# 🤖 Modelagem e Comparação
-
-# 
-
-# Foram testados dois algoritmos, ambos configurados para lidar com o forte desbalanceamento da base de dados:
-
-# 
-
-# Regressão Logística: Modelo baseline (linear). Utilizou class\_weight='balanced' para penalizar erros na minoria.
-
-# 
-
-# XGBoost Classifier: Modelo baseado em árvores (não linear). Utilizou scale\_pos\_weight ajustado matematicamente pela proporção das classes para maximizar a captura da inadimplência.
-
-# 
-
-# 📈 Resultados e Impacto Comercial
-
-# 
-
-# O XGBoost demonstrou superioridade clara na detecção de padrões complexos, sendo o modelo recomendado para produção.
-
-# 
-
-# ROC AUC: Evolução de 0.54 (Logística) para 0.6838 (XGBoost), indicando um poder substancialmente maior de separar os bons dos maus perfis.
-
-# 
-
-# Geração de Negócios (Recall Classe 0): O XGBoost aprova corretamente 72% dos bons pagadores (contra apenas 58% do modelo anterior). Isso significa destravar milhares de concessões seguras e reduzir clientes barrados injustamente (Falsos Positivos).
-
-# 
-
-# Proteção do Capital (Recall Classe 1): O modelo barra 56% dos inadimplentes reais, evitando perdas financeiras na carteira de crédito.
-
-# 
-
-# Assertividade do Bloqueio (Precision Classe 1): Quando o modelo emite o alerta de risco, ele é mais preciso que a regressão (21% vs 14%), reduzindo alarmes falsos operacionais.
-
-
+Em concessão de crédito fundamentada por dados demográficos e de cadastro, forçar uma captura de risco acima de 90% resulta inevitavelmente no bloqueio massivo de clientes rentáveis. O limiar de 0.50 garante um ponto de equilíbrio sustentável: protege o capital ao reter a maior fatia do risco evidente, sem paralisar a geração de negócios da instituição.
