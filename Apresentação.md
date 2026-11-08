@@ -46,7 +46,7 @@ Decisão que o Modelo apoia: O modelo apoia a decisão automatizada ou semi-auto
 
 * **Ajuste de Limiares (*Thresholds*):** Explicar porque um limiar (*threshold*) excessivamente agressivo (ex: buscar 90% de Recall usando apenas dados demográficos) destruiria a rentabilidade da carteira.
 
-> *"Utilizamos o limiar ótimo em torno de $0.50$ (ou ajuste comercial de $0.45$) como o ponto de equilíbrio de negócio que protege o capital sem asfixiar as aprovações."*
+*"Utilizamos o limiar ótimo em torno de $0.50$ (ou ajuste comercial de $0.45$) como o ponto de equilíbrio de negócio que protege o capital sem asfixiar as aprovações."*
 
 ---
 
