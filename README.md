@@ -1,4 +1,5 @@
 Projeto Final: Modelo de Classificação para Risco de Crédito
+------------------------------------------------------------
 Autores: Eduardo Roquette, Fernando Araújo e Gustavo Bogéa
 
 Data: Novembro/2026
