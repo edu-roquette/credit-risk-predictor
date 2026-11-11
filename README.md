@@ -6,6 +6,9 @@ Data: Novembro/2026
 Objetivo
 Desenvolver um algoritmo de machine learning capaz de prever a probabilidade de inadimplência de clientes com base em dados financeiros e demográficos. O foco do projeto é automatizar e apoiar a tomada de decisão na concessão de crédito, garantindo o equilíbrio entre a mitigação de risco e a geração de receita.
 
+🔗 Fonte e Documentação do Dataset (Kaggle):
+https://www.kaggle.com/datasets/rikdifos/credit-card-approval-prediction
+
 Contexto e Desafio de Negócio
 O setor financeiro lida constantemente com o desbalanceamento severo de dados. Nesta base, identificamos um cenário real de mercado:
 
