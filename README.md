@@ -4,237 +4,152 @@ Autores: Eduardo Roquette, Fernando Araújo e Gustavo Bogéa
 
 Data: Novembro/2026
 
-## 1. Objetivo
+# Classificação de Risco de Crédito
 
-Desenvolver um modelo de machine learning para prever a probabilidade de inadimplência de clientes com base em informações cadastrais e históricas de crédito. O projeto foi estruturado para apoiar decisões de análise de risco em concessão de crédito, com foco em identificar corretamente perfis com histórico de atraso sem rejeitar de forma excessiva clientes financeiramente saudáveis.
+## 1. Visão geral
 
-## 2. Contexto e desafio de negócio
+O projeto compara modelos supervisionados de classificação binária para identificar **associações entre características cadastrais e financeiras e a ocorrência de atrasos no histórico de pagamentos** dos clientes.
 
-O setor financeiro lida com um desafio clássico de classificação binária em ambiente fortemente desbalanceado. Neste conjunto, a distribuição observada foi:
+O objetivo é estudar técnicas de preparação de dados, tratamento de desbalanceamento, treinamento e avaliação de classificadores. Os resultados **não demonstram previsão de inadimplência futura** e não justificam, isoladamente, decisões automatizadas de concessão de crédito.
 
-- 88,31% de bons pagadores (classe 0)
-- 11,69% de inadimplentes (classe 1)
+## 2. Dados utilizados
 
-Esse cenário torna crítica a escolha de métricas e limiares na tomada de decisão. Modelos que priorizam apenas a acurácia global tendem a favorecer a classe majoritária e ignorar os casos de maior risco financeiro. Em crédito, isso resulta em perdas por falsos negativos ou, em uma abordagem excessivamente conservadora, rejeição de clientes rentáveis.
+O notebook lê dois arquivos CSV a partir da pasta `dados/`:
 
-## 3. Fonte dos dados
+| Arquivo | Conteúdo |
+|---|---|
+| `dados/application_record.csv` | Informações cadastrais e socioeconômicas dos clientes. |
+| `dados/credit_record.csv` | Histórico mensal de registros de pagamento. |
 
-A base utilizada foi extraída do dataset público do Kaggle:
+As bases são relacionadas por `id_cliente` (coluna `ID` nos arquivos de origem). O histórico mensal é agregado por cliente para formar a variável alvo e, depois, combinado com os dados cadastrais por *inner join*.
 
-https://www.kaggle.com/datasets/rikdifos/credit-card-approval-prediction
+Na execução armazenada no notebook, a base final apresenta **36.457 linhas e 36.457 clientes únicos**. A verificação diagnóstica encontrou **47 ocorrências de IDs repetidos na base cadastral**, mas **nenhuma na base final**.
 
-A estrutura do conjunto contempla:
+## 3. Definição da variável alvo
 
-- dados cadastrais dos clientes (renda, ocupação, educação, estado civil, tipo de moradia, etc.);
-- histórico de pagamento mensal;
-- indicadores de atraso e comportamento de crédito ao longo do tempo.
+A coluna `inadimplente`, preservada no código por compatibilidade, representa neste experimento **a ocorrência de pelo menos um registro histórico de atraso**, e não necessariamente inadimplência grave:
 
-## 4. Definição da variável alvo
+- **Classe 1:** o cliente apresentou ao menos um status de pagamento `1`, `2`, `3`, `4` ou `5` no período observado.
+- **Classe 0:** o cliente não apresentou nenhum desses status no período observado.
 
-A variável alvo foi construída a partir do histórico de pagamentos mensais. Considerou-se como cliente inadimplente aquele que apresentou pelo menos um registro de atraso nos status de 1 a 5, que incluem atrasos de 1 a 29 dias e outras faixas de inadimplência observadas no histórico.
+A classe positiva **inclui atrasos de 1 a 29 dias**, além das faixas superiores. O rótulo é obtido com uma agregação por cliente (`max`) da indicação binária de atraso ao longo dos registros mensais.
 
-A lógica implementada foi:
+**Limitação central:** não há separação temporal entre o período usado para caracterizar os clientes e um período futuro de observação do desfecho. Portanto, o estudo avalia classificação associada ao histórico, não desempenho comprovado de previsão futura.
 
-- status de 1 a 5 = inadimplente
-- status 0 = sem atraso relevante no período observado
-- agregação por cliente para definir se houve pelo menos um atraso ao longo do histórico
+## 4. Preparação dos dados
 
-Essa escolha reflete a realidade do setor financeiro, em que a existência de histórico de atraso é relevante para a análise de risco, mesmo que o comportamento mais recente esteja estável.
+O notebook realiza renomeação e padronização de colunas, mapeamento de categorias e engenharia de atributos. Entre as variáveis utilizadas estão:
 
-## 5. Pipeline de dados
+- renda anual, idade, anos de emprego e quantidade de membros da família;
+- posse de imóvel e carro;
+- tipo de renda, escolaridade, estado civil, tipo de moradia e ocupação.
 
-### 5.1 Merge das bases
+A escolaridade é codificada numericamente de forma ordinal. A variável `anos_emprego` mantém o tratamento definido anteriormente pelo grupo, inclusive a conversão em anos com limite inferior de zero; esse procedimento pode tratar valores especiais de forma simplificada e deve ser considerado uma limitação.
 
-Foram combinadas as bases:
+### Divisão e prevenção de vazamento
 
-- application_record.csv
-- credit_record.csv
+Os dados são separados de maneira estratificada, com `random_state=42`:
 
-A junção foi feita pelo identificador do cliente, permitindo reunir perfil cadastral e comportamento financeiro em um único conjunto.
+| Conjunto | Proporção | Registros |
+|---|---:|---:|
+| Treinamento | 60% | 21.873 |
+| Validação | 20% | 7.292 |
+| Teste | 20% | 7.292 |
 
-### 5.2 Feature engineering
+O pré-processamento é **ajustado apenas no treinamento** usando `Pipeline` e `ColumnTransformer`:
 
-Durante o pré-processamento, foram aplicadas as seguintes transformações:
+- **Numéricas:** imputação pela mediana (`SimpleImputer`).
+- **Categóricas:** imputação pela categoria mais frequente e `OneHotEncoder(handle_unknown='ignore', drop='first')`.
+- **Regressão Logística:** `StandardScaler` ajustado somente no treinamento e aplicado aos demais conjuntos.
+- **XGBoost:** utiliza as variáveis transformadas sem escalonamento adicional.
 
-- conversão de variáveis temporais em indicadores mais interpretáveis, como idade e anos de emprego;
-- mapeamento e padronização de categorias em português;
-- imputação de valores ausentes em colunas numéricas e categóricas;
-- criação de features representativas do perfil socioeconômico e do histórico financeiro;
-- verificação de duplicações de clientes para garantir consistência da amostra.
+## 5. Modelos avaliados
 
-### 5.3 Variáveis selecionadas
+| Modelo | Configuração principal | Papel no estudo |
+|---|---|---|
+| `DummyClassifier` | `strategy='most_frequent'` | Referência (*baseline*) que prevê a classe majoritária. |
+| Regressão Logística | `max_iter=1000`, `class_weight='balanced'`, `random_state=42` | Classificador linear com ponderação de classes. |
+| XGBoost | `n_estimators=200`, `learning_rate=0.1`, `max_depth=5`, `scale_pos_weight` calculado no treino, `random_state=42` | Classificador baseado em árvores impulsionadas. |
 
-As features utilizadas no modelo incluíram:
+A escolha dos limiares pelo **índice de Youden** é realizada sobre as probabilidades do **conjunto de validação**. Os limiares selecionados são então avaliados no conjunto de teste. Também são apresentados limiares fixos para ilustrar diferentes compromissos entre precisão e sensibilidade.
 
-- renda anual
-- idade
-- anos de emprego
-- quantidade de membros na família
-- possuir imóvel
-- possuir carro
-- tipo de renda
-- escolaridade
-- estado civil
-- tipo de moradia
-- ocupação
+## 6. Resultados registrados na V2
 
-### 5.4 Preparação para modelagem
+As métricas abaixo são as **saídas salvas no notebook**, não resultados de uma nova execução independente.
 
-A base final foi dividida em:
+| Modelo / limiar | Acurácia | Precisão | Recall | F1 | ROC-AUC |
+|---|---:|---:|---:|---:|---:|
+| Baseline (`DummyClassifier`) | 0,8823 | 0,0000 | 0,0000 | 0,0000 | 0,5000 |
+| Regressão Logística — 0,50 | 0,5546 | 0,1325 | 0,5023 | 0,2097 | 0,5448 |
+| Regressão Logística — Youden 0,51 | 0,6163 | 0,1370 | 0,4266 | 0,2074 | 0,5448 |
+| Regressão Logística — negócio 0,35 | 0,1267 | 0,1183 | 0,9953 | 0,2115 | 0,5448 |
+| XGBoost — 0,50 | 0,6983 | 0,1991 | 0,5175 | **0,2876** | **0,6706** |
+| XGBoost — Youden 0,48 | 0,6402 | 0,1817 | 0,5874 | 0,2775 | **0,6706** |
+| XGBoost — comercial 0,45 | 0,5720 | 0,1714 | 0,6876 | 0,2744 | **0,6706** |
+| XGBoost — negócio 0,30 | 0,2392 | 0,1266 | 0,9266 | 0,2228 | **0,6706** |
 
-- treino: 21.873 registros
-- validação: 7.292 registros
-- teste: 7.292 registros
+**Interpretação:**
 
-A separação foi feita de forma estratificada pela variável alvo para preservar a proporção original das classes.
+- O baseline alcança acurácia elevada por privilegiar a classe majoritária, mas apresenta **recall zero** para a classe com registros históricos de atraso.
+- O **XGBoost apresenta o maior ROC-AUC** entre os modelos testados (aproximadamente **0,671**), contra **0,545** da Regressão Logística e **0,500** do baseline.
+- No teste, o XGBoost com limiar **0,50** apresentou o maior F1 entre os cenários registrados (**0,288**). Isso **não prova** que 0,50 seja o limiar ótimo para novos dados.
+- Ao reduzir o limiar do XGBoost para **0,45**, o recall sobe para aproximadamente **68,8%**, com redução da precisão para aproximadamente **17,1%**. No limiar **0,30**, o recall alcança **92,7%**, mas a precisão cai para aproximadamente **12,7%**.
+- Alterar o limiar modifica as classificações e métricas dependentes do limiar, **não o ROC-AUC** calculado a partir das mesmas probabilidades.
 
-Além disso:
+O notebook inclui tabela comparativa, matrizes de confusão para três cenários da Regressão Logística e quatro do XGBoost, além de análises de coeficientes e importância de atributos.
 
-- o pré-processamento (imputação + One-Hot Encoding para variáveis categóricas) foi ajustado somente sobre o treino;
-- o StandardScaler foi aplicado apenas para a Regressão Logística, mantendo os dados originais para o XGBoost.
+## 7. Conclusão e limitações
 
-## 6. Modelos testados
+Entre os modelos testados, o **XGBoost é o mais promissor para aprofundamento**, devido à maior capacidade de discriminação observada no conjunto de teste. Entretanto, sua precisão ainda é baixa em todos os cenários apresentados; não se recomenda implantação imediata.
 
-Foram avaliados três cenários principais:
+Antes de qualquer aplicação real, seriam necessários, entre outros pontos:
 
-1. Baseline (DummyClassifier)
-2. Regressão Logística
-3. XGBoost Classifier
+1. **Validação temporal** com dados de períodos posteriores e definição de um desfecho futuro.
+2. **Análise dos custos de falsos positivos e falsos negativos**, para fundamentar a escolha do limiar.
+3. **Avaliação de calibração**, robustez e generalização em novas amostras.
+4. Revisão das hipóteses de tratamento de atributos, incluindo a **codificação ordinal da escolaridade** e o tratamento de **anos de emprego**.
 
-### 6.1 Baseline
+O projeto demonstra a importância de utilizar um baseline, evitar vazamento no ajuste do pré-processamento e separar a escolha dos limiares da avaliação final.
 
-O baseline foi definido como um classificador que prevê sempre a classe majoritária.
+## 8. Como executar
 
-Resultado no teste:
+### Requisitos
 
-- acurácia: 0,882
-- precisão: 0,000
-- recall: 0,000
-- ROC-AUC: 0,500
+- Python 3 e ambiente Jupyter (por exemplo, VS Code com extensão Jupyter);
+- Bibliotecas Python: `pandas`, `numpy`, `matplotlib`, `scikit-learn` e `xgboost`.
 
-Esse cenário ilustra por que a acurácia isolada não é suficiente para uma análise confiável em dados desbalanceados.
+Exemplo de instalação:
 
-### 6.2 Regressão Logística
+```bash
+python -m pip install pandas numpy matplotlib scikit-learn xgboost jupyter
+```
 
-A Regressão Logística foi treinada com class_weight='balanced' para mitigar o efeito do desbalanceamento.
+> O código usa `OneHotEncoder(sparse_output=False)`, parâmetro disponível em versões recentes do `scikit-learn` (a partir da versão 1.2).
 
-Principais resultados no conjunto de teste:
+### Estrutura esperada
 
-- padrão (limiar 0,50):
-  - acurácia: 0,555
-  - precisão: 0,133
-  - recall: 0,502
-  - ROC-AUC: 0,545
+```text
+repositorio/
+├── credit_risk_model.ipynb       # versão original, se mantida
+├── credit_risk_model_V2.ipynb    # versão revisada
+├── README.md                     # documentação original, se mantida
+├── README_V2.md                  # esta documentação
+└── dados/
+    ├── application_record.csv
+    └── credit_record.csv
+```
 
-- limiar ótimo (0,51):
-  - acurácia: 0,616
-  - precisão: 0,137
-  - recall: 0,427
-  - ROC-AUC: 0,545
+A estrutura acima mostra os caminhos **esperados pelo notebook**; confirme que os CSVs estão disponíveis nesses locais. Se os dados não estiverem versionados no repositório, será necessário obtê-los separadamente e colocá-los na pasta `dados/`.
 
-- limiar de negócio (0,35):
-  - acurácia: 0,127
-  - precisão: 0,118
-  - recall: 0,995
-  - ROC-AUC: 0,545
+1. Abra o repositório como pasta de trabalho no VS Code ou inicie o Jupyter a partir da raiz do projeto.
+2. Selecione o ambiente Python com as dependências instaladas.
+3. Abra `credit_risk_model_V2.ipynb`.
+4. Execute as células em ordem (`Run All`).
+5. Confira a tabela de métricas e as visualizações geradas.
 
-Conclusão: a Regressão Logística apresentou baixo poder discriminativo para o problema e não foi considerada a melhor opção para produção.
+---
 
-### 6.3 XGBoost
-
-O modelo XGBoost foi treinado com ajuste para o desbalanceamento da classe positiva utilizando scale_pos_weight e parâmetros adaptados para classificação de risco.
-
-Resultados no conjunto de teste:
-
-- padrão (limiar 0,50):
-  - acurácia: 0,698
-  - precisão: 0,199
-  - recall: 0,517
-  - ROC-AUC: 0,671
-
-- limiar ótimo (0,48):
-  - acurácia: 0,640
-  - precisão: 0,182
-  - recall: 0,587
-  - ROC-AUC: 0,671
-
-- limiar comercial (0,45):
-  - acurácia: 0,572
-  - precisão: 0,171
-  - recall: 0,688
-  - ROC-AUC: 0,671
-
-- limiar de negócio (0,30):
-  - acurácia: 0,239
-  - precisão: 0,127
-  - recall: 0,927
-  - ROC-AUC: 0,671
-
-## 7. Avaliação de desempenho
-
-Para esse problema, as métricas mais relevantes não são apenas acurácia e precisão isoladas, mas também:
-
-- ROC-AUC: mede a capacidade do modelo de distinguir clientes inadimplentes de bons pagadores;
-- Recall: mede a proporção de inadimplentes corretamente identificados;
-- Precisão: mede a confiabilidade dos clientes sinalizados como risco;
-- F1-Score: equilibra recall e precisão em uma única métrica.
-
-## 8. Interpretação do negócio
-
-A análise mostra que o objetivo não é maximizar indiscriminadamente a redução de falsos negativos, porque isso leva à rejeição massiva de clientes rentáveis. Em crédito, a decisão ótima depende do trade-off entre:
-
-- risco de concessão excessiva;
-- perda por inadimplência;
-- rejeição de bons clientes.
-
-Nesse contexto, o modelo XGBoost oferece o melhor equilíbrio operacional, especialmente quando o limiar de decisão é ajustado para um cenário mais comercial, como 0,45. Esse ajuste consegue aumentar o recall para 68,8%, capturando uma parcela muito maior dos potenciais inadimplentes sem exigir um corte excessivamente agressivo.
-
-## 9. Decisão final
-
-O modelo final recomendado para aplicação operacional é o XGBoost com limiar de decisão em 0,45 (ou ajuste fino em torno de 0,50, conforme a tolerância de risco da instituição).
-
-### Recomendações práticas
-
-- utilizar XGBoost como modelo principal;
-- calibrar o limiar conforme a política de risco da instituição;
-- manter monitoramento contínuo do modelo em produção;
-- revisar a definição de inadimplência e a qualidade dos dados periodicamente;
-- considerar ajustes adicionais de custo de decisão se o negócio exigir priorização de recall ou precisão.
-
-## 10. Conclusão
-
-O projeto demonstrou que, para um problema de risco de crédito fortemente desbalanceado, modelos lineares tradicionais são limitados, enquanto abordagens baseadas em árvores, como XGBoost, entregam desempenho superior em discriminação e utilidade operacional.
-
-A combinação de engenharia de features, tratamento adequado do desbalanceamento e escolha de limiar comercial apropriado foi essencial para transformar o modelo em uma ferramenta útil para apoio à decisão de concessão de crédito.
-
-## 11. Estrutura do repositório
-
-- README.md
-- credit_risk_model_V2.ipynb
-- dados/
-  - application_record.csv
-  - credit_record.csv
-
-## 12. Como reproduzir
-
-1. Clone o repositório.
-2. Instale as dependências do projeto.
-3. Acesse a pasta `dados` e confirme que os arquivos de entrada estejam presentes.
-4. Abra o notebook `credit_risk_model_V2.ipynb`.
-5. Execute as células em sequência para reproduzir o pipeline completo.
-
-Dependências principais:
-
-- Python 3.x
-- pandas
-- numpy
-- scikit-learn
-- xgboost
-- matplotlib
-
-## 13. Observações finais
-
-Este projeto reforça a importância de analisar classificação de risco de crédito com uma visão de negócio, e não apenas com foco em métricas acadêmicas. A escolha final do modelo e do limiar deve ser alinhada ao perfil de risco da instituição, ao custo de falsos positivos e falsos negativos e à estratégia operacional de aprovação de crédito.
+*Documentação elaborada a partir do conteúdo e das saídas armazenadas em `credit_risk_model.ipynb`.*
 
 ---
 
